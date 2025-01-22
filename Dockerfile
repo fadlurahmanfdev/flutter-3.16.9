@@ -1,71 +1,69 @@
+# Use Ubuntu 22.04 as the base image
 FROM ubuntu:22.04
 
-USER root
+# Set noninteractive mode to suppress prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
 
-# INSTALL SUDO
-RUN apt update -y && \
-    apt upgrade -y && \
-    apt install sudo -y
+# Update and install necessary packages
+RUN apt-get update && apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends \
+        wget \
+        unzip \
+        curl \
+        git \
+        openjdk-17-jdk \
+        openssh-client && \
+    rm -rf /var/lib/apt/lists/*
 
-# INSTALL WGET
-RUN sudo apt update -y && \
-    sudo apt install wget -y
+# Create a non-root user
+ARG USERNAME=fadlurahmanfdev
+RUN useradd -m $USERNAME
+USER $USERNAME
+WORKDIR /home/$USERNAME
 
-# INSTALL UNZIP
-RUN sudo apt update -y && \
-    sudo apt install unzip -y
+# Install Android SDK
+RUN mkdir -p Android/sdk && mkdir -p .android && touch .android/repositories.cfg && \
+    wget -O sdk-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip && \
+    unzip sdk-tools.zip -d Android/sdk && rm sdk-tools.zip && \
+    mv Android/sdk/cmdline-tools Android/sdk/cmdline-tools-temp && \
+    mkdir Android/sdk/cmdline-tools && \
+    mv Android/sdk/cmdline-tools-temp Android/sdk/cmdline-tools/latest && \
+    yes | Android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses && \
+    Android/sdk/cmdline-tools/latest/bin/sdkmanager \
+        "cmdline-tools;latest" \
+        "build-tools;33.0.2" \
+        "platform-tools" \
+        "platforms;android-33" \
+        "sources;android-33"
 
-# INSTALL CURL
-RUN sudo apt update -y && \
-    sudo apt install curl -y && \
-    curl --version
+# Set environment variables for Android SDK
+ENV ANDROID_SDK_ROOT="/home/$USERNAME/Android/sdk"
+ENV PATH="$PATH:/home/$USERNAME/Android/sdk/cmdline-tools/latest/bin"
+ENV PATH="$PATH:/home/$USERNAME/Android/sdk/platform-tools"
 
-# INSTALL GIT
-RUN sudo apt update -y && \
-    sudo apt install git -y && \
-    git --version
+# Install Flutter
+RUN git clone --branch 3.16.9 https://github.com/flutter/flutter.git && \
+    echo "export PATH=\$PATH:/home/$USERNAME/flutter/bin" >> ~/.bashrc && \
+    echo "export PATH=\$PATH:/home/$USERNAME/flutter/bin/cache/dart-sdk/bin" >> ~/.bashrc
+ENV PATH="$PATH:/home/$USERNAME/flutter/bin"
+ENV PATH="$PATH:/home/$USERNAME/flutter/bin/cache/dart-sdk/bin"
 
-# INSTALL OPEN JDK
-RUN sudo apt update -y && \
-    sudo apt install openjdk-17-jdk -y
-
-# INSTALL SSH
-RUN sudo apt update -y && \
-    sudo apt install openssh-client -y && \
-    ssh -V && \
-    eval $(ssh-agent)
-
-RUN useradd -m fadlurahmanfdev
-USER fadlurahmanfdev
-WORKDIR /home/fadlurahmanfdev
-
-#INSTALL ANDROID SDK
-RUN mkdir -p Android/sdk
-ENV ANDROID_SDK_ROOT="/home/fadlurahmanfdev/Android/sdk"
-RUN mkdir -p .android && touch .android/repositories.cfg
-RUN wget -O sdk-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip
-RUN unzip sdk-tools.zip && rm sdk-tools.zip
-RUN mv cmdline-tools Android/sdk
-RUN cd Android/sdk/cmdline-tools/bin && yes | ./sdkmanager --sdk_root=${ANDROID_SDK_ROOT} --licenses
-RUN cd Android/sdk/cmdline-tools/bin && ./sdkmanager --sdk_root=${ANDROID_SDK_ROOT} "cmdline-tools;latest" "build-tools;33.0.2" "platform-tools" "platforms;android-33" "sources;android-33"
-ENV PATH="$PATH:/home/fadlurahmanfdev/Android/sdk/cmdline-tools/bin"
-ENV PATH="$PATH:/home/fadlurahmanfdev/Android/sdk/platform-tools"
-
-# INSTALL FLUTTER
-RUN git clone --branch 3.16.9 https://github.com/flutter/flutter.git
-ENV PATH="$PATH:/home/fadlurahmanfdev/flutter"
-ENV PATH="$PATH:/home/fadlurahmanfdev/flutter/bin"
-ENV FLUTTER_HOME="/home/fadlurahmanfdev/flutter"
-ENV FLUTTER_ROOT="/home/fadlurahmanfdev/flutter"
-
-# FLUTTER DOCRTOR
+# Run Flutter doctor to pre-cache dependencies
 RUN flutter doctor -v
 
-# INSTALL MELOS
-RUN flutter pub global activate melos
-ENV PATH "$PATH:/home/fadlurahmanfdev/.pub-cache/bin"
-RUN melos --version
+# Install FVM
+RUN dart pub global activate fvm && \
+    echo "export PATH=\$PATH:/home/$USERNAME/.pub-cache/bin" >> ~/.bashrc
+ENV PATH="$PATH:/home/$USERNAME/.pub-cache/bin"
 
+# Install Melos
+RUN flutter pub global activate melos
+
+# Verify Melos and FVM installations
+RUN melos --version && fvm --version
+
+# Set working directory to root
 WORKDIR /
 
-CMD /bin/bash
+# Default command
+CMD ["/bin/bash"]
