@@ -62,6 +62,15 @@ RUN flutter pub global activate melos
 # Verify Melos and FVM installations
 RUN melos --version && fvm --version
 
+# Install Fvm Flutter 3.16.9
+RUN fvm install 3.16.9
+
+# Verify installed flutter in FVM
+RUN fvm list
+
+# Make flutter 3.16.9 as a global version
+RUN fvm global 3.16.9
+
 # Set working directory to root
 WORKDIR /
 
